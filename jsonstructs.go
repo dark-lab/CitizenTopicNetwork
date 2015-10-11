@@ -6,14 +6,12 @@ type Graph struct {
 }
 
 type Node struct {
-	Name      string  `json:"name"`
-	Group     int     `json:"group"`
-	Size      float32 `json:"size"`
-	Thickness float32 `json:"thickness"`
+	Name  string `json:"name"`
+	Group int    `json:"group"`
 }
 
 type Link struct {
-	Source int `json:"source"`
-	Target int `json:"target"`
-	Value  int `json:"value"`
+	Source int  `json:"source"`
+	Target int  `json:"target"`
+	Value  int8 `json:"value"`
 }

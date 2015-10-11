@@ -20,6 +20,9 @@ var format = logging.MustStringFormatter(
 	"%{color}%{time:15:04:05.000} %{shortpkg}.%{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}",
 )
 
+const GENERATED_HASHTAGS = "user_generated_hashtags"
+const MATCHING_HASHTAGS = "matching_hashtags"
+
 func main() {
 	var c int
 	var configurationFile string
@@ -58,42 +61,58 @@ func GenerateData(configurationFile string) {
 		panic(err)
 	}
 	//api := GetTwitter(&conf)
-	db := nutz.NewStorage(configurationFile+".db", 0600, nil)
 	mygraph := Graph{Nodes: []Node{}, Links: []Link{}}
-	innercount := 0
-	nodecount := 0
-	group := 0
+
 	for _, account := range conf.TwitterAccounts {
-		tweets := db.Get(account, "tweets")
-		from := db.Get(account, "from")
-		retweets := db.Get(account, "retweets")
-		unique_mentions := db.Get(account, "unique_mentions")
-		total_mentions := db.Get(account, "total_mentions")
-		followers := db.Get(account, "followers")
-		following := db.Get(account, "following")
-		followers_followed := db.Get(account, "followers_followed")
-		mentions_to_followed := db.Get(account, "mentions_to_followed")
+		db := nutz.NewStorage(account+".db", 0600, nil)
 
-		log.Info("Account: " + account)
-		log.Info("from: " + string(from.Data))
+		nodecount := 0
 
-		log.Info("Tweets: " + string(tweets.Data))
+		myNetwork := db.GetAll(account, MATCHING_HASHTAGS).DataList
+		myMatrix := make(map[string][]int)                 // this is the Matrix Hashtags/ Users ID
+		myNetworkMatrix := make(map[int64]map[string]int8) //so we can extract later data easily
+		myMapNetwork := make(map[int]int64)                //this will be used to resolve User ID of the graph <-> Twitter id
 
-		log.Info("retweets: " + string(retweets.Data))
-		log.Info("unique_mentions: " + string(unique_mentions.Data))
+		for k, _ := range myNetwork {
+			ki64, _ := strconv.ParseInt(string(k), 10, 64)
 
-		log.Info("total_mentions: " + string(total_mentions.Data))
-		log.Info("followers: " + string(followers.Data))
-		log.Info("following: " + string(following.Data))
-		log.Info("followers_followed: " + string(followers_followed.Data))
-		log.Info("mentions_to_followed: " + string(mentions_to_followed.Data))
-		// myUniqueMentions := db.GetAll(account, "map_unique_mentions").DataList
+			myUserNetwork := db.GetAll(account, MATCHING_HASHTAGS, k).DataList
+			myNetworkMatrix[ki64] = make(map[string]int8)
+			fmt.Println("User ID is: " + string(k))
+			myMapNetwork[nodecount] = ki64 //mapping Graph user id with Tweet user id
+			for h, o := range myUserNetwork {
+				fmt.Println("Hastag: " + string(h) + " saw  " + string(o) + " times")
+				myMatrix[string(h)] = append(myMatrix[string(h)], nodecount) // Generating adjacient map
+				occurrences, _ := strconv.Atoi(string(o))
+				myNetworkMatrix[ki64][string(h)] = int8(occurrences) // convert the db to a map
+			}
+			mygraph.Nodes = append(mygraph.Nodes, Node{Name: string(k), Group: 1})
+			nodecount++
+		}
+		fmt.Println("Generating graph")
+		for hashtag, users := range myMatrix {
+
+			for _, userid := range users {
+
+				for _, userid2 := range users {
+					if userid2 != userid {
+
+						mygraph.Links = append(mygraph.Links, Link{Source: userid, Target: userid2, Value: myNetworkMatrix[myMapNetwork[userid]][hashtag]})
+					}
+				}
+
+			}
+
+		}
+		fmt.Println("Writing graph to json file")
+
+		//
 		// nUniqueMentions, _ := strconv.Atoi(string(unique_mentions.Data))
 		// nMentions_to_followed, _ := strconv.Atoi(string(mentions_to_followed.Data))
 		// nTweets, _ := strconv.Atoi(string(tweets.Data))
 		// nReTweets, _ := strconv.Atoi(string(retweets.Data))
 
-		mygraph.Nodes = append(mygraph.Nodes, Node{Name: account, Group: group})
+		//mygraph.Nodes = append(mygraph.Nodes, Node{Name: account, Group: group})
 
 		// for k, v := range myUniqueMentions {
 
@@ -103,15 +122,12 @@ func GenerateData(configurationFile string) {
 		// 	mygraph.Links = append(mygraph.Links, Link{Source: innercount, Target: nodecount, Value: weight})
 		// 	innercount++
 		// }
-		innercount++
-		nodecount = innercount
-		nodecount++
-		group++
-	}
-	fileJson, _ := json.MarshalIndent(mygraph, "", "  ")
-	err = ioutil.WriteFile(configurationFile+".output", fileJson, 0644)
-	if err != nil {
-		log.Info("WriteFileJson ERROR: " + err.Error())
+
+		fileJson, _ := json.MarshalIndent(mygraph, "", "  ")
+		err = ioutil.WriteFile(account+".output", fileJson, 0644)
+		if err != nil {
+			log.Info("WriteFileJson ERROR: " + err.Error())
+		}
 	}
 
 }
@@ -153,10 +169,11 @@ func GatherData(configurationFile string) {
 		var SocialNetwork map[string]struct{}
 		SocialNetwork = make(map[string]struct{})
 		for _, t := range myTweets[i] {
-			// detecting hashtags
+			// detecting hashtagsq
 			for _, tag := range t.Entities.Hashtags {
 
 				if tag.Text != "" {
+					fmt.Println("\tFound hashtag: " + tag.Text)
 					SocialNetwork[tag.Text] = struct{}{}
 				}
 			}
@@ -166,14 +183,18 @@ func GatherData(configurationFile string) {
 		}
 
 		fmt.Println("\tRetweets " + strconv.Itoa(retweets) + " retweets")
+		fmt.Println("\t" + strconv.Itoa(len(SocialNetwork)) + " hashtags")
+
 		var memory_network map[string]map[string]int
 		memory_network = make(map[string]map[string]int)
 		for k, _ := range SocialNetwork {
 
-			db.Create(i, k, []byte(""), "hashtags")
+			db.Create(i, k, []byte(""), GENERATED_HASHTAGS)
 			db.Create(i, "retweets", []byte(strconv.Itoa(retweets)))
 
-			fmt.Println("\tFound hashtag: " + k)
+			fmt.Println("\t Searching hashtag: " + k)
+
+			// not searching right before we found an hashtag, storing them to be UNIQUE, then in another phase searching deep further
 			MyTweetsNetwork := Search(api, conf.FetchFrom, "#"+k)
 			for _, tweet := range MyTweetsNetwork {
 				if _, exists := memory_network[tweet.User.IdStr]; exists {
@@ -184,8 +205,13 @@ func GatherData(configurationFile string) {
 				}
 
 			}
-			//TODO: convert memory_network to be saved in nutz
-			//TODO: not searching right before we found an hashtag, storing them to be UNIQUE, then in another phase searching deep further
+		}
+
+		for user, tags := range memory_network {
+			for tag, occurrence := range tags {
+				db.Create(i, tag, []byte(
+					strconv.Itoa(occurrence)), MATCHING_HASHTAGS, user)
+			}
 		}
 
 	}
