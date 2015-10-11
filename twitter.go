@@ -93,10 +93,12 @@ func GetTimelines(api *anaconda.TwitterApi, account string, since int64) timelin
 		for _, tweet = range timeline {
 
 			time, _ = tweet.CreatedAtTime()
-			myTweets[tweet.IdStr] = tweet
+			if time.Unix() >= since {
+				myTweets[tweet.IdStr] = tweet
+			}
 			//Tweettime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", time.Year(), time.Month(), time.Day(), time.Hour(), time.Minute(), time.Second())
 			//log.Info("\tTweet @ " + Tweettime + " : " + tweet.IdStr)
-			max_id = tweet.Id -1
+			max_id = tweet.Id - 1
 		}
 		//log.Info("\tFinished reading timeslice for " + account)
 	}
@@ -131,14 +133,16 @@ func Search(api *anaconda.TwitterApi, since int64, searchString string) searchTw
 		searchResult, _ := api.GetSearch(searchString, v)
 
 		for _, tweet = range searchResult.Statuses {
-			myTweets[tweet.IdStr] = tweet
+			if myTime.Unix() >= since {
+				myTweets[tweet.IdStr] = tweet
+			}
 			fmt.Println(tweet.Text)
 			myTime, _ = tweet.CreatedAtTime()
 
 			Tweettime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", myTime.Year(), myTime.Month(), myTime.Day(), myTime.Hour(), myTime.Minute(), myTime.Second())
 			user_tweet := tweet.User.IdStr
-			log.Info("["+user_tweet+"] Tweet @ " + Tweettime + " : " + tweet.IdStr)
-			max_id = tweet.Id -1
+			log.Info("[" + user_tweet + "] Tweet @ " + Tweettime + " : " + tweet.IdStr)
+			max_id = tweet.Id - 1
 		}
 
 	}
