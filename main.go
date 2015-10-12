@@ -1,8 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/pquerna/ffjson/ffjson"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -123,7 +123,7 @@ func GenerateData(configurationFile string) {
 		// 	innercount++
 		// }
 
-		fileJson, _ := json.MarshalIndent(mygraph, "", "  ")
+		fileJson, _ := ffjson.Marshal(&mygraph)
 		err = ioutil.WriteFile(account+".output", fileJson, 0644)
 		if err != nil {
 			log.Info("WriteFileJson ERROR: " + err.Error())
