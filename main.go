@@ -61,6 +61,7 @@ func GenerateData(configurationFile string) {
 		panic(err)
 	}
 	//api := GetTwitter(&conf)
+	fmt.Println(">> Generating JSON file of gathered data")
 	mygraph := Graph{Nodes: []Node{}, Links: []Link{}}
 
 	for _, account := range conf.TwitterAccounts {
@@ -78,18 +79,31 @@ func GenerateData(configurationFile string) {
 
 			myUserNetwork := db.GetAll(account, MATCHING_HASHTAGS, k).DataList
 			myNetworkMatrix[ki64] = make(map[string]int8)
-			fmt.Println("User ID is: " + string(k))
-			myMapNetwork[nodecount] = ki64 //mapping Graph user id with Tweet user id
-			for h, o := range myUserNetwork {
-				fmt.Println("Hastag: " + string(h) + " saw  " + string(o) + " times")
-				myMatrix[string(h)] = append(myMatrix[string(h)], nodecount) // Generating adjacient map
-				occurrences, _ := strconv.Atoi(string(o))
-				myNetworkMatrix[ki64][string(h)] = int8(occurrences) // convert the db to a map
+			//fmt.Println("User ID is: " + string(k))
+			if len(myUserNetwork) > conf.HashtagCutOff { //Cutting off people that just tweeted 1 hashtag
+
+				htagsatisfied := false //cutoff var
+				for h, o := range myUserNetwork {
+					occur, _ := strconv.Atoi(string(o))
+					//fmt.Println("Hastag: " + string(h) + " saw  " + string(o) + " times")
+					if occur > conf.HashtagOccurrenceCutOff { // Cutting off people that just tweeted the hashtag once
+						myMatrix[string(h)] = append(myMatrix[string(h)], nodecount) // Generating adjacient map
+						htagsatisfied = true                                         //cutoff var, setting true to enable node counting
+					}
+					occurrences, _ := strconv.Atoi(string(o))
+					myNetworkMatrix[ki64][string(h)] = int8(occurrences) // convert the db to a map
+
+				}
+				if htagsatisfied { //Cutting off also nodes who satisfied the cuttoff above
+					myMapNetwork[nodecount] = ki64 //mapping Graph user id with Tweet user id
+
+					mygraph.Nodes = append(mygraph.Nodes, Node{Name: string(k), Group: 1})
+					nodecount++
+				}
 			}
-			mygraph.Nodes = append(mygraph.Nodes, Node{Name: string(k), Group: 1})
-			nodecount++
+
 		}
-		fmt.Println("Generating graph")
+		fmt.Println(">> Generating graph")
 		for hashtag, users := range myMatrix {
 
 			for _, userid := range users {
@@ -104,7 +118,7 @@ func GenerateData(configurationFile string) {
 			}
 
 		}
-		fmt.Println("Writing graph to json file")
+		fmt.Println(">> Writing graph to json file")
 
 		//
 		// nUniqueMentions, _ := strconv.Atoi(string(unique_mentions.Data))

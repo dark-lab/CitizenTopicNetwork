@@ -18,6 +18,8 @@ type Configuration struct {
 	Date                     string   `json:"fetch_from"`
 	FetchFrom                int64
 	FetchFollow              bool `json:"fetch_follow"`
+	HashtagCutOff            int  `json:"hashtagcutoff"`
+	HashtagOccurrenceCutOff  int  `json:"hashtagoccurrence_cutoff"`
 }
 
 func LoadConfig(f string) (Configuration, error) {
@@ -28,6 +30,8 @@ func LoadConfig(f string) (Configuration, error) {
 	}
 	var conf Configuration
 	conf.FetchFollow = false
+	conf.HashtagCutOff = 0
+	conf.HashtagOccurrenceCutOff = 0
 	decoder := json.NewDecoder(jsonFile)
 	err = decoder.Decode(&conf)
 	if err != nil {
