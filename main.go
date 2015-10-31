@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/pquerna/ffjson/ffjson"
 	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
+
+	"github.com/pquerna/ffjson/ffjson"
 
 	"github.com/dark-lab/CitizenTopicNetwork/shared/config"
 	_ "github.com/dark-lab/CitizenTopicNetwork/shared/utils"
@@ -158,6 +159,99 @@ func GatherData(configurationFile string) {
 	if err != nil {
 		panic(err)
 	}
+	crawler := NewTwitterCrawler(&conf)
+
+	myTweets := make(map[string]timelinesTweets)
+
+	for _, account := range conf.TwitterAccounts {
+		log.Info("-== Timeline for Account: %#v ==-\n", account)
+
+		myTweets[account] = crawler.GetTimelines(account, conf.FetchFrom, false) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
+
+		log.Info("-== END TIMELINE for %#v ==-\n", account)
+
+	}
+
+	for _, account := range conf.TwitterAccounts {
+
+		GatherDataFromAccount(crawler, account, myTweets[account])
+	}
+
+}
+
+func GatherDataFromAccount(crawler *TwitterCrawler, account string, timeLine timelinesTweets) {
+	retweetRegex, _ := regexp.Compile(`^RT`) // detecting retweets
+	log.Info(">> Depth look on " + account)
+
+	retweets := 0
+	db := nutz.NewStorage(account+".db", 0600, nil)
+	fmt.Println("-== Account: " + account + " ==-")
+	fmt.Println("\tTweets: " + strconv.Itoa(len(timeLine)))
+	var SocialNetwork map[string]struct{}
+	SocialNetwork = make(map[string]struct{})
+	for _, t := range timeLine {
+		// detecting hashtags
+		for _, tag := range t.Entities.Hashtags {
+
+			if tag.Text != "" {
+				fmt.Println("\tFound hashtag: " + tag.Text)
+				SocialNetwork[tag.Text] = struct{}{}
+			}
+		}
+		if retweetRegex.MatchString(t.Text) == true {
+			retweets++
+		}
+	}
+
+	fmt.Println("\tRetweets " + strconv.Itoa(retweets) + " retweets")
+	fmt.Println("\t" + strconv.Itoa(len(SocialNetwork)) + " hashtags")
+
+	var memory_network map[string]map[string]int
+	memory_network = make(map[string]map[string]int)
+
+	//Cycling on hashtags
+	for k, _ := range SocialNetwork {
+
+		db.Create(account, k, []byte(""), GENERATED_HASHTAGS)
+		db.Create(account, "retweets", []byte(strconv.Itoa(retweets)))
+
+		fmt.Println("\t Searching hashtag: " + k)
+
+		// not searching right before we found an hashtag
+		// storing them to be UNIQUE, then in another phase searching deep further
+		MyTweetsNetwork := crawler.Search(conf.FetchFrom, "#"+k)
+		for _, tweet := range MyTweetsNetwork {
+			if _, exists := memory_network[tweet.User.IdStr]; exists {
+				memory_network[tweet.User.IdStr][k]++
+			} else {
+				memory_network[tweet.User.IdStr] = make(map[string]int)
+				memory_network[tweet.User.IdStr][k]++
+			}
+
+		}
+	}
+
+	for user, tags := range memory_network {
+		for tag, occurrence := range tags {
+			db.Create(account, tag, []byte(
+				strconv.Itoa(occurrence)), MATCHING_HASHTAGS, user)
+		}
+	}
+
+}
+
+func updateGatheredData(configurationFile string) {
+	var retweets int
+
+	if configurationFile == "" {
+		panic("I can't work without a configuration file")
+	}
+
+	log.Info("Loading config")
+	conf, err := config.LoadConfig(configurationFile)
+	if err != nil {
+		panic(err)
+	}
 
 	myTweets := make(map[string]timelinesTweets)
 	api := GetTwitter(&conf)
@@ -167,7 +261,7 @@ func GatherData(configurationFile string) {
 	for _, account := range conf.TwitterAccounts {
 		log.Info("-== Timeline for Account: %#v ==-\n", account)
 
-		myTweets[account] = GetTimelines(api, account, conf.FetchFrom)
+		myTweets[account] = GetTimelines(api, account, conf.FetchFrom, false) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
 
 		log.Info("-== END TIMELINE for %#v ==-\n", account)
 
@@ -183,7 +277,7 @@ func GatherData(configurationFile string) {
 		var SocialNetwork map[string]struct{}
 		SocialNetwork = make(map[string]struct{})
 		for _, t := range myTweets[i] {
-			// detecting hashtagsq
+			// detecting hashtags
 			for _, tag := range t.Entities.Hashtags {
 
 				if tag.Text != "" {
