@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
-	"github.com/Masterminds/cookoo/log"
 	"github.com/dark-lab/CitizenTopicNetwork/shared/config"
 )
 
@@ -54,7 +53,7 @@ func (c *TwitterCrawler) GetFollowers(account string) []int64 {
 		for _, User = range page.Followers {
 			counter++
 			Followers = append(Followers, User.Id)
-			log.Debug("["+strconv.Itoa(counter)+"] Getting another Follower", User.Id)
+			//	log.Debug("["+strconv.Itoa(counter)+"] Getting another Follower", User.Id)
 		}
 	}
 	return Followers
@@ -73,13 +72,15 @@ func (c *TwitterCrawler) GetFollowing(account string) []int64 {
 		for _, id = range page.Ids {
 			counter++
 			Following = append(Following, id)
-			log.Debug("["+strconv.Itoa(counter)+"] Getting another Following", id)
+			//	log.Debug("["+strconv.Itoa(counter)+"] Getting another Following", id)
 		}
 	}
 	return Following
 }
 
-func (c *TwitterCrawler) GetTimelines(account string, since int64, strictrange bool) timelinesTweets {
+func (c *TwitterCrawler) GetTimelines(account string, strictrange bool) timelinesTweets {
+	since := c.configuration.FetchFrom
+
 	myTweets := make(timelinesTweets)
 	var max_id int64
 	var tweet anaconda.Tweet
@@ -120,7 +121,8 @@ func (c *TwitterCrawler) GetTimelines(account string, since int64, strictrange b
 
 }
 
-func (c *TwitterCrawler) Search(since int64, searchString string) searchTweets {
+func (c *TwitterCrawler) Search(searchString string) searchTweets {
+	since := c.configuration.FetchFrom
 	myTweets := make(searchTweets)
 	var max_id int64
 	var tweet anaconda.Tweet
@@ -153,7 +155,7 @@ func (c *TwitterCrawler) Search(since int64, searchString string) searchTweets {
 
 			Tweettime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", myTime.Year(), myTime.Month(), myTime.Day(), myTime.Hour(), myTime.Minute(), myTime.Second())
 			user_tweet := tweet.User.IdStr
-			log.Info("[" + user_tweet + "] Tweet @ " + Tweettime + " : " + tweet.IdStr)
+			fmt.Println("[" + user_tweet + "] Tweet @ " + Tweettime + " : " + tweet.IdStr)
 			max_id = tweet.Id - 1
 		}
 

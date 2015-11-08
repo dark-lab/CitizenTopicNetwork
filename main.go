@@ -10,7 +10,7 @@ import (
 	"github.com/pquerna/ffjson/ffjson"
 
 	"github.com/dark-lab/CitizenTopicNetwork/shared/config"
-	_ "github.com/dark-lab/CitizenTopicNetwork/shared/utils"
+	"github.com/dark-lab/CitizenTopicNetwork/shared/utils"
 	"github.com/gernest/nutz"
 	. "github.com/mattn/go-getopt"
 	"github.com/op/go-logging"
@@ -74,11 +74,31 @@ func GenerateData(configurationFile string) {
 		myMatrix := make(map[string][]int)                 // this is the Matrix Hashtags/ Users ID
 		myNetworkMatrix := make(map[int64]map[string]int8) //so we can extract later data easily
 		myMapNetwork := make(map[int]int64)                //this will be used to resolve User ID of the graph <-> Twitter id
+		var myCSV [][]string
+		HashtagsMap := db.GetAll(account, GENERATED_HASHTAGS)
+		var Hashtags []string
+		Hashtags = append(Hashtags, "UserID") //First column reserved to userid
+
+		for h, _ := range HashtagsMap.DataList {
+			Hashtags = append(Hashtags, string(h))
+		}
+		myCSV = append(myCSV, Hashtags)
 
 		for k, _ := range myNetwork {
 			ki64, _ := strconv.ParseInt(string(k), 10, 64)
-
+			//Column name is ki64
 			myUserNetwork := db.GetAll(account, MATCHING_HASHTAGS, k).DataList
+			var userOccurrence []string
+			userOccurrence = append(userOccurrence, string(k)) //this is the userid
+			for _, h := range Hashtags {
+				if occurence, ok := myUserNetwork[h]; ok {
+					userOccurrence = append(userOccurrence, string(occurence))
+				} else {
+					userOccurrence = append(userOccurrence, string(0))
+				}
+			}
+			myCSV = append(myCSV, userOccurrence)
+
 			myNetworkMatrix[ki64] = make(map[string]int8)
 			//fmt.Println("User ID is: " + string(k))
 			if len(myUserNetwork) > conf.HashtagCutOff { //Cutting off people that just tweeted 1 hashtag
@@ -119,6 +139,8 @@ func GenerateData(configurationFile string) {
 			}
 
 		}
+		fmt.Println(">> Writing matrix to csv")
+		utils.WriteCSV(myCSV, account+".csv")
 		fmt.Println(">> Writing graph to json file")
 
 		//
@@ -148,7 +170,6 @@ func GenerateData(configurationFile string) {
 }
 
 func GatherData(configurationFile string) {
-	var retweets int
 
 	if configurationFile == "" {
 		panic("I can't work without a configuration file")
@@ -166,7 +187,7 @@ func GatherData(configurationFile string) {
 	for _, account := range conf.TwitterAccounts {
 		log.Info("-== Timeline for Account: %#v ==-\n", account)
 
-		myTweets[account] = crawler.GetTimelines(account, conf.FetchFrom, false) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
+		myTweets[account] = crawler.GetTimelines(account, false) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
 
 		log.Info("-== END TIMELINE for %#v ==-\n", account)
 
@@ -219,7 +240,7 @@ func GatherDataFromAccount(crawler *TwitterCrawler, account string, timeLine tim
 
 		// not searching right before we found an hashtag
 		// storing them to be UNIQUE, then in another phase searching deep further
-		MyTweetsNetwork := crawler.Search(conf.FetchFrom, "#"+k)
+		MyTweetsNetwork := crawler.Search("#" + k)
 		for _, tweet := range MyTweetsNetwork {
 			if _, exists := memory_network[tweet.User.IdStr]; exists {
 				memory_network[tweet.User.IdStr][k]++
@@ -238,91 +259,6 @@ func GatherDataFromAccount(crawler *TwitterCrawler, account string, timeLine tim
 		}
 	}
 
-}
-
-func updateGatheredData(configurationFile string) {
-	var retweets int
-
-	if configurationFile == "" {
-		panic("I can't work without a configuration file")
-	}
-
-	log.Info("Loading config")
-	conf, err := config.LoadConfig(configurationFile)
-	if err != nil {
-		panic(err)
-	}
-
-	myTweets := make(map[string]timelinesTweets)
-	api := GetTwitter(&conf)
-
-	retweetRegex, _ := regexp.Compile(`^RT`) // detecting retweets
-
-	for _, account := range conf.TwitterAccounts {
-		log.Info("-== Timeline for Account: %#v ==-\n", account)
-
-		myTweets[account] = GetTimelines(api, account, conf.FetchFrom, false) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
-
-		log.Info("-== END TIMELINE for %#v ==-\n", account)
-
-	}
-
-	log.Info("Analyzing && collecting data")
-
-	for i := range myTweets {
-		retweets = 0
-		db := nutz.NewStorage(i+".db", 0600, nil)
-		fmt.Println("-== Account: " + i + " ==-")
-		fmt.Println("\tTweets: " + strconv.Itoa(len(myTweets[i])))
-		var SocialNetwork map[string]struct{}
-		SocialNetwork = make(map[string]struct{})
-		for _, t := range myTweets[i] {
-			// detecting hashtags
-			for _, tag := range t.Entities.Hashtags {
-
-				if tag.Text != "" {
-					fmt.Println("\tFound hashtag: " + tag.Text)
-					SocialNetwork[tag.Text] = struct{}{}
-				}
-			}
-			if retweetRegex.MatchString(t.Text) == true {
-				retweets++
-			}
-		}
-
-		fmt.Println("\tRetweets " + strconv.Itoa(retweets) + " retweets")
-		fmt.Println("\t" + strconv.Itoa(len(SocialNetwork)) + " hashtags")
-
-		var memory_network map[string]map[string]int
-		memory_network = make(map[string]map[string]int)
-		for k, _ := range SocialNetwork {
-
-			db.Create(i, k, []byte(""), GENERATED_HASHTAGS)
-			db.Create(i, "retweets", []byte(strconv.Itoa(retweets)))
-
-			fmt.Println("\t Searching hashtag: " + k)
-
-			// not searching right before we found an hashtag, storing them to be UNIQUE, then in another phase searching deep further
-			MyTweetsNetwork := Search(api, conf.FetchFrom, "#"+k)
-			for _, tweet := range MyTweetsNetwork {
-				if _, exists := memory_network[tweet.User.IdStr]; exists {
-					memory_network[tweet.User.IdStr][k]++
-				} else {
-					memory_network[tweet.User.IdStr] = make(map[string]int)
-					memory_network[tweet.User.IdStr][k]++
-				}
-
-			}
-		}
-
-		for user, tags := range memory_network {
-			for tag, occurrence := range tags {
-				db.Create(i, tag, []byte(
-					strconv.Itoa(occurrence)), MATCHING_HASHTAGS, user)
-			}
-		}
-
-	}
 }
 
 func FloatToString(input_num float32) string {
