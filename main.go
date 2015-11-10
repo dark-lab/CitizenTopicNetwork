@@ -71,9 +71,9 @@ func GenerateData(configurationFile string) {
 		nodecount := 0
 
 		myNetwork := db.GetAll(account, MATCHING_HASHTAGS).DataList
-		myMatrix := make(map[string][]int)                 // this is the Matrix Hashtags/ Users ID
-		myNetworkMatrix := make(map[int64]map[string]int8) //so we can extract later data easily
-		myMapNetwork := make(map[int]int64)                //this will be used to resolve User ID of the graph <-> Twitter id
+		myMatrix := make(map[string][]int)                  // this is the Matrix Hashtags/ Users ID
+		myNetworkMatrix := make(map[string]map[string]int8) //so we can extract later data easily
+		myMapNetwork := make(map[int]string)                //this will be used to resolve User ID of the graph <-> Twitter id
 		var myCSV [][]string
 		HashtagsMap := db.GetAll(account, GENERATED_HASHTAGS)
 		var Hashtags []string
@@ -85,7 +85,8 @@ func GenerateData(configurationFile string) {
 		myCSV = append(myCSV, Hashtags)
 
 		for k, _ := range myNetwork {
-			ki64, _ := strconv.ParseInt(string(k), 10, 64)
+			//		ki64, _ := strconv.ParseInt(string(k), 10, 64)
+			ki64 := string(k)
 			//Column name is ki64
 			myUserNetwork := db.GetAll(account, MATCHING_HASHTAGS, k).DataList
 			var userOccurrence []string
@@ -187,8 +188,12 @@ func GatherData(configurationFile string) {
 	for _, account := range conf.TwitterAccounts {
 		log.Info("-== Timeline for Account: %#v ==-\n", account)
 
-		myTweets[account] = crawler.GetTimelines(account, false) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
+		if crawler.configuration.Number != 0 {
+			myTweets[account] = crawler.GetTimelinesN(account, false, conf.Number, conf.Slices) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
 
+		} else {
+			myTweets[account] = crawler.GetTimelines(account, false) //false: don't be strict, getting all hashtag in the timeline, also if they are out the interested range
+		}
 		log.Info("-== END TIMELINE for %#v ==-\n", account)
 
 	}
@@ -237,16 +242,21 @@ func GatherDataFromAccount(crawler *TwitterCrawler, account string, timeLine tim
 		db.Create(account, "retweets", []byte(strconv.Itoa(retweets)))
 
 		fmt.Println("\t Searching hashtag: " + k)
+		var MyTweetsNetwork searchTweets
 
 		// not searching right before we found an hashtag
 		// storing them to be UNIQUE, then in another phase searching deep further
-		MyTweetsNetwork := crawler.Search("#" + k)
+		if crawler.configuration.Number != 0 {
+			MyTweetsNetwork = crawler.SearchN("#"+k, crawler.configuration.Number, crawler.configuration.Slices)
+		} else {
+			MyTweetsNetwork = crawler.Search("#" + k)
+		}
 		for _, tweet := range MyTweetsNetwork {
 			if _, exists := memory_network[tweet.User.IdStr]; exists {
-				memory_network[tweet.User.IdStr][k]++
+				memory_network[tweet.User.ScreenName][k]++
 			} else {
-				memory_network[tweet.User.IdStr] = make(map[string]int)
-				memory_network[tweet.User.IdStr][k]++
+				memory_network[tweet.User.ScreenName] = make(map[string]int)
+				memory_network[tweet.User.ScreenName][k]++
 			}
 
 		}

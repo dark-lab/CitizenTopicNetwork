@@ -121,6 +121,85 @@ func (c *TwitterCrawler) GetTimelines(account string, strictrange bool) timeline
 
 }
 
+func (c *TwitterCrawler) GetTimelinesN(account string, strictrange bool, number int, count string) timelinesTweets {
+	fmt.Println("Getting the timeline. " + strconv.Itoa(number) + " of " + count + " Slices")
+	myTweets := make(timelinesTweets)
+	var max_id int64
+	var tweet anaconda.Tweet
+	searchresult, _ := c.api.GetUsersShow(account, nil)
+	v := url.Values{}
+	var timeline []anaconda.Tweet
+	//var Tweettime string
+	v.Set("user_id", searchresult.IdStr)
+	v.Set("count", "1") //getting twitter first tweet
+	timeline, _ = c.api.GetUserTimeline(v)
+	max_id = timeline[0].Id // putting it as max_id
+
+	for i := 0; i < number; i++ { //until we don't exceed our range of interest
+
+		v = url.Values{}
+		v.Set("user_id", searchresult.IdStr)
+		v.Set("count", count)
+		v.Set("max_id", strconv.FormatInt(max_id, 10))
+		timeline, _ = c.api.GetUserTimeline(v)
+		for _, tweet = range timeline {
+
+			myTweets[tweet.IdStr] = tweet
+			//Tweettime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", time.Year(), time.Month(), time.Day(), time.Hour(), time.Minute(), time.Second())
+			//log.Info("\tTweet @ " + Tweettime + " : " + tweet.IdStr)
+			max_id = tweet.Id - 1
+		}
+		//log.Info("\tFinished reading timeslice for " + account)
+	}
+	//log.Info("\tFinished reading timeline for " + account)
+
+	return myTweets
+
+}
+
+func (c *TwitterCrawler) SearchN(searchString string, num int, count string) searchTweets {
+	myTweets := make(searchTweets)
+	var max_id int64
+	var tweet anaconda.Tweet
+	v := url.Values{}
+	var Tweettime string
+	var myTime time.Time
+	v.Set("count", "200")
+
+	searchResult, _ := c.api.GetSearch(searchString, v)
+	for _, tweet := range searchResult.Statuses {
+		myTweets[tweet.IdStr] = tweet
+		fmt.Println(tweet.Text)
+		myTime, _ = tweet.CreatedAtTime()
+
+	}
+	max_id = searchResult.Metadata.MaxId // putting it as max_id
+	for i := 0; i < num; i++ {           //until we don't exceed our range of interest
+
+		v = url.Values{}
+		v.Set("count", count)
+		v.Set("max_id", strconv.FormatInt(max_id, 10))
+
+		searchResult, _ := c.api.GetSearch(searchString, v)
+
+		for _, tweet = range searchResult.Statuses {
+
+			myTweets[tweet.IdStr] = tweet
+
+			fmt.Println(tweet.Text)
+			myTime, _ = tweet.CreatedAtTime()
+
+			Tweettime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", myTime.Year(), myTime.Month(), myTime.Day(), myTime.Hour(), myTime.Minute(), myTime.Second())
+			user_tweet := tweet.User.IdStr
+			fmt.Println("[" + user_tweet + "] Tweet @ " + Tweettime + " : " + tweet.IdStr)
+			max_id = tweet.Id - 1
+		}
+
+	}
+	return myTweets
+
+}
+
 func (c *TwitterCrawler) Search(searchString string) searchTweets {
 	since := c.configuration.FetchFrom
 	myTweets := make(searchTweets)

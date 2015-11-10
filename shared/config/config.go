@@ -2,9 +2,10 @@ package config
 
 import (
 	"encoding/json"
-	"github.com/op/go-logging"
 	"os"
 	"strconv"
+
+	"github.com/op/go-logging"
 )
 
 var log = logging.MustGetLogger("CitizenTopicNetwork")
@@ -17,9 +18,11 @@ type Configuration struct {
 	TwitterAccounts          []string `json:"twitter_accounts"`
 	Date                     string   `json:"fetch_from"`
 	FetchFrom                int64
-	FetchFollow              bool `json:"fetch_follow"`
-	HashtagCutOff            int  `json:"hashtagcutoff"`
-	HashtagOccurrenceCutOff  int  `json:"hashtagoccurrence_cutoff"`
+	FetchFollow              bool   `json:"fetch_follow"`
+	HashtagCutOff            int    `json:"hashtagcutoff"`
+	HashtagOccurrenceCutOff  int    `json:"hashtagoccurrence_cutoff"`
+	Number                   int    `json:"number"`
+	Slices                   string `json:"slices"`
 }
 
 func LoadConfig(f string) (Configuration, error) {
@@ -32,6 +35,8 @@ func LoadConfig(f string) (Configuration, error) {
 	conf.FetchFollow = false
 	conf.HashtagCutOff = 0
 	conf.HashtagOccurrenceCutOff = 0
+	conf.Number = 0
+	conf.Slices = "200"
 	decoder := json.NewDecoder(jsonFile)
 	err = decoder.Decode(&conf)
 	if err != nil {
@@ -52,9 +57,7 @@ func LoadConfig(f string) (Configuration, error) {
 	if len(conf.TwitterAccounts) == 0 {
 		log.Fatal("You need to specify at least one account in 'twitter_accounts'")
 	}
-	if conf.Date == "" {
-		log.Fatal("You need to specify 'fetch_from'")
-	} else {
+	if conf.Date != "" {
 		i, _ := strconv.ParseInt(conf.Date, 10, 64)
 		conf.FetchFrom = i
 	}
