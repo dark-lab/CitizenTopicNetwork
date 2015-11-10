@@ -190,7 +190,7 @@ func (c *TwitterCrawler) SearchN(searchString string, num int, count string) sea
 			myTime, _ = tweet.CreatedAtTime()
 
 			Tweettime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", myTime.Year(), myTime.Month(), myTime.Day(), myTime.Hour(), myTime.Minute(), myTime.Second())
-			user_tweet := tweet.User.IdStr
+			user_tweet := tweet.User.ScreenName
 			fmt.Println("[" + user_tweet + "] Tweet @ " + Tweettime + " : " + tweet.IdStr)
 			max_id = tweet.Id - 1
 		}
@@ -233,7 +233,7 @@ func (c *TwitterCrawler) Search(searchString string) searchTweets {
 			myTime, _ = tweet.CreatedAtTime()
 
 			Tweettime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d", myTime.Year(), myTime.Month(), myTime.Day(), myTime.Hour(), myTime.Minute(), myTime.Second())
-			user_tweet := tweet.User.IdStr
+			user_tweet := tweet.User.ScreenName
 			fmt.Println("[" + user_tweet + "] Tweet @ " + Tweettime + " : " + tweet.IdStr)
 			max_id = tweet.Id - 1
 		}

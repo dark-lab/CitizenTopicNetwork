@@ -95,7 +95,7 @@ func GenerateData(configurationFile string) {
 				if occurence, ok := myUserNetwork[h]; ok {
 					userOccurrence = append(userOccurrence, string(occurence))
 				} else {
-					userOccurrence = append(userOccurrence, string(0))
+					userOccurrence = append(userOccurrence, strconv.Itoa(0))
 				}
 			}
 			myCSV = append(myCSV, userOccurrence)
