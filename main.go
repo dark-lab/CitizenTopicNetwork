@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -62,10 +63,11 @@ func GenerateData(configurationFile string) {
 		panic(err)
 	}
 	//api := GetTwitter(&conf)
-	fmt.Println(">> Generating JSON file of gathered data")
-	mygraph := Graph{Nodes: []Node{}, Links: []Link{}}
+	fmt.Println(">> Exporting gathered data")
+	mygraph := Graph{Nodes: []Node{}, Links: []Link{}, Mode: "static", Defaultedgetype: "undirected"}
 
 	for _, account := range conf.TwitterAccounts {
+		mygraph = Graph{Nodes: []Node{}, Links: []Link{}, Mode: "static", Defaultedgetype: "undirected"}
 		db := nutz.NewStorage(account+".db", 0600, nil)
 
 		nodecount := 0
@@ -119,26 +121,27 @@ func GenerateData(configurationFile string) {
 				if htagsatisfied { //Cutting off also nodes who satisfied the cuttoff above
 					myMapNetwork[nodecount] = ki64 //mapping Graph user id with Tweet user id
 
-					mygraph.Nodes = append(mygraph.Nodes, Node{Name: string(k), Group: 1})
+					mygraph.Nodes = append(mygraph.Nodes, Node{Id: nodecount, Name: string(k), Group: 1})
 					nodecount++
 				}
 			}
 
 		}
-		fmt.Println(">> Generating graph")
+		fmt.Println(">> Generating graph for " + account)
+		linkscount := 0
 		for hashtag, users := range myMatrix {
-
 			for _, userid := range users {
-
 				for _, userid2 := range users {
 					if userid2 != userid {
+						if int(myNetworkMatrix[myMapNetwork[userid]][hashtag]) > conf.HashtagOccurrenceCutOff {
 
-						mygraph.Links = append(mygraph.Links, Link{Source: userid, Target: userid2, Value: myNetworkMatrix[myMapNetwork[userid]][hashtag]})
+							mygraph.Links = append(mygraph.Links, Link{Id: linkscount, Source: userid, Target: userid2, Value: float32(myNetworkMatrix[myMapNetwork[userid]][hashtag])})
+
+							linkscount++
+						}
 					}
 				}
-
 			}
-
 		}
 		fmt.Println(">> Writing matrix to csv")
 		utils.WriteCSV(myCSV, account+".csv")
@@ -163,6 +166,14 @@ func GenerateData(configurationFile string) {
 
 		fileJson, _ := ffjson.Marshal(&mygraph)
 		err = ioutil.WriteFile(account+".output", fileJson, 0644)
+		if err != nil {
+			log.Info("WriteFileJson ERROR: " + err.Error())
+		}
+		out, err := xml.Marshal(mygraph)
+		out = append([]byte(`<?xml version="1.0" encoding="UTF-8"?><gexf xmlns="http://www.gexf.net/1.2draft" version="1.2"> <meta lastmodifieddate="2009-03-20"> <creator>dark-lab</creator><description>Gephi file</description> </meta>`), out...)
+		out = append(out, []byte(`</gexf>`)...)
+
+		err = ioutil.WriteFile(account+".output.gexf", out, 0644)
 		if err != nil {
 			log.Info("WriteFileJson ERROR: " + err.Error())
 		}
