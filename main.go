@@ -67,6 +67,7 @@ func GenerateData(configurationFile string) {
 	mygraph := Graph{Nodes: []Node{}, Links: []Link{}, Mode: "static", Defaultedgetype: "undirected"}
 
 	for _, account := range conf.TwitterAccounts {
+		fmt.Println(">> Generating graph for " + account)
 		mygraph = Graph{Nodes: []Node{}, Links: []Link{}, Mode: "static", Defaultedgetype: "undirected"}
 		db := nutz.NewStorage(account+".db", 0600, nil)
 
@@ -127,7 +128,7 @@ func GenerateData(configurationFile string) {
 			}
 
 		}
-		fmt.Println(">> Generating graph for " + account)
+		fmt.Println(">> Preparing graph for " + account)
 		linkscount := 0
 		for hashtag, users := range myMatrix {
 			for _, userid := range users {
